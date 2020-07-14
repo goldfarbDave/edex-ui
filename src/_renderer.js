@@ -342,77 +342,12 @@ async function getDisplayName() {
 // Create the UI's html structure and initialize the terminal client and the keyboard
 async function initUI() {
     document.body.innerHTML += `<section class="mod_column" id="mod_column_left">
-        <h3 class="title"><p>PANEL</p><p>SYSTEM</p></h3>
-    </section>
-    <section id="main_shell" style="height:0%;width:0%;opacity:0;margin-bottom:30vh;" augmented-ui="bl-clip tr-clip exe">
-        <h3 class="title" style="opacity:0;"><p>TERMINAL</p><p>MAIN SHELL</p></h3>
-        <h1 id="main_shell_greeting"></h1>
     </section>
     <section class="mod_column" id="mod_column_right">
-        <h3 class="title"><p>PANEL</p><p>NETWORK</p></h3>
     </section>`;
 
-    await _delay(10);
+    await _delay(1);
 
-    window.audioManager.expand.play();
-    document.getElementById("main_shell").setAttribute("style", "height:0%;margin-bottom:30vh;");
-
-    await _delay(500);
-
-    document.getElementById("main_shell").setAttribute("style", "margin-bottom: 30vh;");
-    document.querySelector("#main_shell > h3.title").setAttribute("style", "");
-
-    await _delay(700);
-
-    document.getElementById("main_shell").setAttribute("style", "opacity: 0;");
-    document.body.innerHTML += `
-    <section id="filesystem" style="width: 0px;" class="${window.settings.hideDotfiles ? "hideDotfiles" : ""} ${window.settings.fsListView ? "list-view" : ""}">
-    </section>
-    <section id="keyboard" style="opacity:0;">
-    </section>`;
-    window.keyboard = new Keyboard({
-        layout: path.join(keyboardsDir, settings.keyboard+".json"),
-        container: "keyboard"
-    });
-
-    await _delay(10);
-
-    document.getElementById("main_shell").setAttribute("style", "");
-
-    await _delay(270);
-
-    let greeter = document.getElementById("main_shell_greeting");
-
-    getDisplayName().then(user => {
-        if (user) {
-            greeter.innerHTML += `Welcome back, <em>${user}</em>`;
-        } else {
-            greeter.innerHTML += "Welcome back";
-        }
-    });
-
-    greeter.setAttribute("style", "opacity: 1;");
-
-    document.getElementById("filesystem").setAttribute("style", "");
-    document.getElementById("keyboard").setAttribute("style", "");
-    document.getElementById("keyboard").setAttribute("class", "animation_state_1");
-    window.audioManager.keyboard.play();
-
-    await _delay(100);
-
-    document.getElementById("keyboard").setAttribute("class", "animation_state_1 animation_state_2");
-
-    await _delay(1000);
-
-    greeter.setAttribute("style", "opacity: 0;");
-
-    await _delay(100);
-
-    document.getElementById("keyboard").setAttribute("class", "");
-
-    await _delay(400);
-
-    greeter.remove();
 
     // Initialize modules
     window.mods = {};
@@ -452,60 +387,6 @@ async function initUI() {
         }
     }, 500);
 
-    await _delay(100);
-
-    // Initialize the terminal
-    let shellContainer = document.getElementById("main_shell");
-    shellContainer.innerHTML += `
-        <ul id="main_shell_tabs">
-            <li id="shell_tab0" onclick="window.focusShellTab(0);" class="active"><p>MAIN SHELL</p></li>
-            <li id="shell_tab1" onclick="window.focusShellTab(1);"><p>EMPTY</p></li>
-            <li id="shell_tab2" onclick="window.focusShellTab(2);"><p>EMPTY</p></li>
-            <li id="shell_tab3" onclick="window.focusShellTab(3);"><p>EMPTY</p></li>
-            <li id="shell_tab4" onclick="window.focusShellTab(4);"><p>EMPTY</p></li>
-        </ul>
-        <div id="main_shell_innercontainer">
-            <pre id="terminal0" class="active"></pre>
-            <pre id="terminal1"></pre>
-            <pre id="terminal2"></pre>
-            <pre id="terminal3"></pre>
-            <pre id="terminal4"></pre>
-        </div>`;
-    window.term = {
-        0: new Terminal({
-            role: "client",
-            parentId: "terminal0",
-            port: window.settings.port || 3000
-        })
-    };
-    window.currentTerm = 0;
-    window.term[0].onprocesschange = p => {
-        document.getElementById("shell_tab0").innerHTML = `<p>MAIN - ${p}</p>`;
-    };
-    // Prevent losing hardware keyboard focus on the terminal when using touch keyboard
-    window.onmouseup = e => {
-        if (window.keyboard.linkedToTerm) window.term[window.currentTerm].term.focus();
-    };
-    window.term[0].term.writeln("\033[1m"+`Welcome to eDEX-UI v${electron.remote.app.getVersion()} - Electron v${process.versions.electron}`+"\033[0m");
-
-    await _delay(100);
-
-    window.fsDisp = new FilesystemDisplay({
-        parentId: "filesystem"
-    });
-
-    await _delay(200);
-
-    document.getElementById("filesystem").setAttribute("style", "opacity: 1;");
-
-    // Resend terminal CWD to fsDisp if we're hot reloading
-    if (window.performance.navigation.type === 1) {
-        window.term[window.currentTerm].resendCWD();
-    }
-
-    await _delay(200);
-
-    window.updateCheck = new UpdateChecker();
 }
 
 window.themeChanger = theme => {
@@ -515,74 +396,6 @@ window.themeChanger = theme => {
     }, 100);
 };
 
-window.remakeKeyboard = layout => {
-    document.getElementById("keyboard").innerHTML = "";
-    window.keyboard = new Keyboard({
-        layout: path.join(keyboardsDir, layout+".json" || settings.keyboard+".json"),
-        container: "keyboard"
-    });
-    ipc.send("setKbOverride", layout);
-};
-
-window.focusShellTab = number => {
-    window.audioManager.folder.play();
-
-    if (number !== window.currentTerm && window.term[number]) {
-        window.currentTerm = number;
-
-        document.querySelectorAll(`ul#main_shell_tabs > li:not(:nth-child(${number+1}))`).forEach(e => {
-            e.setAttribute("class", "");
-        });
-        document.getElementById("shell_tab"+number).setAttribute("class", "active");
-
-        document.querySelectorAll(`div#main_shell_innercontainer > pre:not(:nth-child(${number+1}))`).forEach(e => {
-            e.setAttribute("class", "");
-        });
-        document.getElementById("terminal"+number).setAttribute("class", "active");
-
-        window.term[number].fit();
-        window.term[number].term.focus();
-        window.term[number].resendCWD();
-
-        window.fsDisp.followTab();
-    } else if (number > 0 && number <= 4 && window.term[number] !== null && typeof window.term[number] !== "object") {
-        window.term[number] = null;
-
-        document.getElementById("shell_tab"+number).innerHTML = "<p>LOADING...</p>";
-        ipc.send("ttyspawn", "true");
-        ipc.once("ttyspawn-reply", (e, r) => {
-            if (r.startsWith("ERROR")) {
-                document.getElementById("shell_tab"+number).innerHTML = "<p>ERROR</p>";
-            } else if (r.startsWith("SUCCESS")) {
-                let port = Number(r.substr(9));
-
-                window.term[number] = new Terminal({
-                    role: "client",
-                    parentId: "terminal"+number,
-                    port
-                });
-
-                window.term[number].onclose = e => {
-                    delete window.term[number].onprocesschange;
-                    document.getElementById("shell_tab"+number).innerHTML = "<p>EMPTY</p>";
-                    document.getElementById("terminal"+number).innerHTML = "";
-                    window.term[number].term.dispose();
-                    delete window.term[number];
-                    window.useAppShortcut("PREVIOUS_TAB");
-                };
-
-                window.term[number].onprocesschange = p => {
-                    document.getElementById("shell_tab"+number).innerHTML = `<p>#${number+1} - ${p}</p>`;
-                };
-
-                document.getElementById("shell_tab"+number).innerHTML = `<p>::${port}</p>`;
-                setTimeout(() => {
-                    window.focusShellTab(number);
-                }, 500);
-            }
-        });
-    }
-};
 
 // Settings editor
 window.openSettings = async () => {
@@ -799,11 +612,11 @@ window.openSettings = async () => {
             {label: "Restart eDEX", action: "electron.remote.app.relaunch();electron.remote.app.quit();"}
         ]
     }, () => {
-        // Link the keyboard back to the terminal
-        window.keyboard.attach();
+        // // Link the keyboard back to the terminal
+        // window.keyboard.attach();
 
-        // Focus back on the term
-        window.term[window.currentTerm].term.focus();
+        // // Focus back on the term
+        // window.term[window.currentTerm].term.focus();
     });
 };
 
